@@ -2,75 +2,83 @@ package com.example.monetizemais;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.net.ConnectivityManager;
-import android.net.NetworkCapabilities;
+import android.net.NetworkInfo;
 import android.os.Bundle;
+import android.os.Handler;
+import android.view.KeyEvent;
+import android.view.View;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
-import android.webkit.WebViewClient;
 
 public class TelaWebView extends AppCompatActivity {
-
     private WebView webView;
-    private String currentUrl = "https://front-end-wfl2.onrender.com/";
-
-    private final BroadcastReceiver networkReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            if (isNetworkAvailable(context)) {
-                if (webView.getUrl() == null) {
-                    webView.loadUrl(currentUrl);
-                } else {
-                    webView.reload();
-                }
-            } else {
-                Intent errorIntent = new Intent(TelaWebView.this, ErroRedeActivity.class);
-                startActivity(errorIntent);
-            }
-        }
-    };
+    private Handler handler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_tela_web_view);
 
-        // Configurar a WebView
         webView = findViewById(R.id.webview);
-        WebSettings webSettings = webView.getSettings();
-        webSettings.setJavaScriptEnabled(true);
 
-        // Definir WebViewClient para abrir URLs dentro da WebView
-        webView.setWebViewClient(new WebViewClient());
+        handler = new Handler();
 
-        // Carregar a URL inicial
-        webView.loadUrl(currentUrl);
+        handler.postDelayed(checkInternetRunnable, 10000);
 
-        // Registrar o BroadcastReceiver para monitorar a conectividade
-        registerReceiver(networkReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
+        loadWebView();
+
+        webView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                loadWebView();
+            }
+        });
     }
 
     @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        unregisterReceiver(networkReceiver);
+    protected void onStart() {
+        super.onStart();
+
+        loadWebView();
     }
 
-    // Método auxiliar atualizado para verificar se a conexão de rede está disponível
-    private boolean isNetworkAvailable(Context context) {
-        ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_BACK && webView.canGoBack()) {
+            webView.goBack();
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
+    private boolean verificaRede() {
+        ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         if (connectivityManager != null) {
-            NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
-            return capabilities != null && (
-                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-                            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
-                            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
-            );
+            NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+            return activeNetworkInfo != null && activeNetworkInfo.isConnected();
         }
         return false;
     }
-}
+
+    // Runnable para verificar a conectividade à internet periodicamente
+    private Runnable checkInternetRunnable = new Runnable() {
+        @Override
+        public void run() {
+            loadWebView();
+            // Agendar a próxima verificação após 10 segundos
+            handler.postDelayed(this, 10000);
+        }
+    };
+
+    private void loadWebView() {
+        if (verificaRede()) {
+                WebSettings webSettings = webView.getSettings();
+                webSettings.setJavaScriptEnabled(true);
+                webSettings.setDomStorageEnabled(true);
+                webView.loadUrl("https://front-end-wfl2.onrender.com/");
+            }
+        }
+    }
